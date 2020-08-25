@@ -71,6 +71,7 @@
 #ifndef ARDUINO_HOODLOADER2
 
 #define RESET     22 // Use pin 10 to reset the target rather than SS
+
 #define LED_HB    9
 #define LED_ERR   8
 #define LED_PMODE 7
@@ -78,13 +79,13 @@
 // Uncomment following line to use the old Uno style wiring
 // (using pin 11, 12 and 13 instead of the SPI header) on Leonardo, Due...
 
-// #define USE_OLD_STYLE_WIRING
+#define SPI3
 
-#ifdef USE_OLD_STYLE_WIRING
+#ifdef SPI3
 
-#define PIN_MOSI	11
-#define PIN_MISO	12
-#define PIN_SCK		13
+#define PIN_MOSI	23
+#define PIN_MISO	19
+#define PIN_SCK		18
 
 #endif
 
@@ -162,7 +163,7 @@ void pulse(int pin, int times);
 #include "SPI.h"
 #else
 
-#define SPI_MODE0 0x00
+//#define SPI_MODE0 0x00
 
 #include <SSD1306.h>
 
@@ -225,6 +226,15 @@ class BitBangedSPI {
 static BitBangedSPI SPI;
 
 #endif
+
+void DisplayText(const char *text, const char *text2="")
+{
+    display.clear();
+    display.drawString(0, 0, text);
+    display.drawString(0, 16, text2);
+    display.display();
+}
+
 void InitOLED() {
   pinMode(OLED_RST,OUTPUT);
   digitalWrite(OLED_RST, LOW);    // set GPIO16 low to reset OLED
@@ -236,20 +246,6 @@ void InitOLED() {
   display.flipScreenVertically();  
   display.drawString(0, 0, "Starting..");
   display.display();
-}
-
-void setup() {
-  InitOLED();
-
-  SERIAL.begin(BAUDRATE);
-
-  pinMode(LED_PMODE, OUTPUT);
-  pulse(LED_PMODE, 2);
-  pinMode(LED_ERR, OUTPUT);
-  pulse(LED_ERR, 2);
-  pinMode(LED_HB, OUTPUT);
-  pulse(LED_HB, 2);
-
 }
 
 int error = 0;
@@ -618,6 +614,7 @@ void read_page() {
 void read_signature() {
   if (CRC_EOP != getch()) {
     error++;
+    DisplayText("No Sync");
     SERIAL.print((char) STK_NOSYNC);
     return;
   }
@@ -629,16 +626,13 @@ void read_signature() {
   uint8_t low = spi_transaction(0x30, 0x00, 0x02, 0x00);
   SERIAL.print((char) low);
   SERIAL.print((char) STK_OK);
+  char buf[28];
+  sprintf(buf, "%d %d %d", high, middle, low);
+  DisplayText("SPI",buf);
 }
 //////////////////////////////////////////
 //////////////////////////////////////////
 
-void DisplayText(char *text)
-{
-    display.clear();
-    display.drawString(0, 0, text);
-    display.display();
-}
 
 ////////////////////////////////////
 ////////////////////////////////////
@@ -693,6 +687,7 @@ void avrisp() {
       empty_reply();
       break;
     case 0x61: //STK_PROG_DATA
+      DisplayText("STK_PROG_DATA");
       getch(); // data
       empty_reply();
       break;
@@ -707,6 +702,7 @@ void avrisp() {
       break;
 
     case 'V': //0x56
+      DisplayText("Universal");
       universal();
       break;
     case 'Q': //0x51
@@ -717,6 +713,7 @@ void avrisp() {
       break;
 
     case 0x75: //STK_READ_SIGN 'u'
+      DisplayText("Signature");
       read_signature();
       break;
 
@@ -736,6 +733,24 @@ void avrisp() {
         SERIAL.print((char)STK_NOSYNC);
   }
 }
+
+void setup() {
+  InitOLED();
+
+  DisplayText("Ready");
+
+  SERIAL.begin(BAUDRATE);
+
+  pinMode(LED_PMODE, OUTPUT);
+  pulse(LED_PMODE, 2);
+  pinMode(LED_ERR, OUTPUT);
+  pulse(LED_ERR, 2);
+  pinMode(LED_HB, OUTPUT);
+  pulse(LED_HB, 2);
+
+}
+
+
 
 void loop(void) {
   // is pmode active?
